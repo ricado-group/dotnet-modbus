@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30804.86
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RICADO.Modbus", "RICADO.Modbus\RICADO.Modbus.csproj", "{13517F78-0264-4D95-AF24-CCCB057ECA32}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{13517F78-0264-4D95-AF24-CCCB057ECA32}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{13517F78-0264-4D95-AF24-CCCB057ECA32}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{13517F78-0264-4D95-AF24-CCCB057ECA32}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{13517F78-0264-4D95-AF24-CCCB057ECA32}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {BA9DA27A-44E9-48C9-997C-F3DA995D6D00}
+	EndGlobalSection
+EndGlobal
