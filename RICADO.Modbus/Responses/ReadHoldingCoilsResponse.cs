@@ -41,7 +41,10 @@ namespace RICADO.Modbus.Responses
 
             bool[] values = new bool[request.Length];
 
-            bitArray.CopyTo(values, 0);
+            for(int i = 0; i < values.Length; i++)
+            {
+                values[i] = bitArray.Get(i);
+            }
 
             return values;
         }

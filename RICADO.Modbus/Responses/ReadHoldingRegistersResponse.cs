@@ -33,7 +33,7 @@ namespace RICADO.Modbus.Responses
                 return new short[0];
             }
 
-            Memory<byte> bytes = response.Data.AsMemory().Slice(0, expectedByteCount);
+            Memory<byte> bytes = response.Data.AsMemory().Slice(1, expectedByteCount);
 
             List<short> values = new List<short>();
 

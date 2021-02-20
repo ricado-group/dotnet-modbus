@@ -111,14 +111,11 @@ namespace RICADO.Modbus.Channels
 
             while (attempts <= retries)
             {
-                // Increment the Attempts
-                attempts++;
-
                 try
                 {
                     await _requestSemaphore.WaitAsync(cancellationToken);
 
-                    if (attempts > 1)
+                    if (attempts > 0)
                     {
                         await destroyAndInitializeClient(request.UnitID, timeout, cancellationToken);
                     }
@@ -152,6 +149,9 @@ namespace RICADO.Modbus.Channels
                 {
                     _requestSemaphore.Release();
                 }
+
+                // Increment the Attempts
+                attempts++;
             }
 
             try
@@ -288,6 +288,10 @@ namespace RICADO.Modbus.Channels
                 {
                     throw new ModbusException("Failed to Receive RTU Message from Modbus Device ID '" + unitId + "' on '" + RemoteHost + ":" + Port + "' - The Unit ID did not Match");
                 }
+
+                receivedData.RemoveRange(0, 1);
+
+                receivedData.RemoveRange(receivedData.Count - 2, 2);
 
                 result.Message = receivedData.ToArray();
             }

@@ -78,7 +78,7 @@ namespace RICADO.Modbus.Responses
 
             if (response.FunctionCode != request.FunctionCode)
             {
-                throw new RTUException("Unexpected Function Code '" + Enum.GetName(typeof(FunctionCode), response.FunctionCode) + "' - Expecting '" + Enum.GetName(typeof(FunctionCode), request.FunctionCode) + "'");
+                throw new RTUException("Unexpected Function Code '" + Enum.GetName(typeof(enFunctionCode), response.FunctionCode) + "' - Expecting '" + Enum.GetName(typeof(enFunctionCode), request.FunctionCode) + "'");
             }
 
             response.Data = message.Length > 1 ? message.Slice(1, message.Length - 1).ToArray() : new byte[0];
@@ -86,13 +86,35 @@ namespace RICADO.Modbus.Responses
             return response;
         }
 
-        internal static bool ValidateFunctionCode(byte functionCode) => Enum.IsDefined(typeof(enFunctionCode), functionCode) || Enum.IsDefined(typeof(enFunctionCode), functionCode - 0x80);
+        internal static bool ValidateFunctionCode(byte functionCode)
+        {
+            if (Enum.IsDefined(typeof(enFunctionCode), functionCode))
+            {
+                return true;
+            }
+
+            if(functionCode < 0x80)
+            {
+                return false;
+            }
+
+            functionCode -= 0x80;
+            
+            return Enum.IsDefined(typeof(enFunctionCode), functionCode);
+        }
 
         internal static int GetMessageLengthHint(RTURequest request, List<byte> receivedData)
         {
-            if (receivedData.Count > 0 && Enum.IsDefined(typeof(enFunctionCode), receivedData[0] - 0x80))
+            if (receivedData.Count > 0 && receivedData[0] >= 0x80)
             {
-                return 2; // Function Code + Exception Code
+                byte functionCode = receivedData[0];
+
+                functionCode -= 0x80;
+
+                if (Enum.IsDefined(typeof(enFunctionCode), functionCode))
+                {
+                    return 2; // Function Code + Exception Code
+                }
             }
 
             int byteCount = 1; // Function Code
@@ -157,7 +179,14 @@ namespace RICADO.Modbus.Responses
 
         private static void throwIfResponseError(byte functionCode, byte exceptionCode)
         {
-            if (Enum.IsDefined(typeof(enFunctionCode), functionCode - 0x80) == false)
+            if(functionCode < 0x80)
+            {
+                return;
+            }
+
+            functionCode -= 0x80;
+
+            if (Enum.IsDefined(typeof(enFunctionCode), functionCode) == false)
             {
                 return;
             }

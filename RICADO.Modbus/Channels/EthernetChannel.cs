@@ -97,14 +97,11 @@ namespace RICADO.Modbus.Channels
 
             while (attempts <= retries)
             {
-                // Increment the Attempts
-                attempts++;
-
                 try
                 {
                     await _semaphore.WaitAsync(cancellationToken);
 
-                    if (attempts > 1)
+                    if (attempts > 0)
                     {
                         await destroyAndInitializeClient(timeout, cancellationToken);
                     }
@@ -138,6 +135,9 @@ namespace RICADO.Modbus.Channels
                 {
                     _semaphore.Release();
                 }
+
+                // Increment the Attempts
+                attempts++;
             }
 
             try

@@ -13,13 +13,13 @@ namespace RICADO.Modbus
     {
         #region Constants
 
-        internal const ushort MaximumAddress = 0xFFFF;
+        public const ushort MaximumAddress = 0xFFFF;
 
-        internal const ushort MaximumCoilsReadLength = 2000;
-        internal const ushort MaximumCoilsWriteLength = 2000;
+        public const ushort MaximumCoilsReadLength = 2000;
+        public const ushort MaximumCoilsWriteLength = 1968;
 
-        internal const ushort MaximumRegistersReadLength = 125;
-        internal const ushort MaximumRegistersWriteLength = 123;
+        public const ushort MaximumRegistersReadLength = 125;
+        public const ushort MaximumRegistersWriteLength = 123;
 
         #endregion
 
@@ -90,6 +90,16 @@ namespace RICADO.Modbus
 
         public ModbusRTUDevice(byte unitId, ConnectionMethod connectionMethod, string remoteHost, int port, int timeout = 2000, int retries = 1)
         {
+            if(connectionMethod == ConnectionMethod.SerialOverLAN && unitId == 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(unitId), "The Unit ID for a Serial Over LAN Modbus Device cannot be '0'");
+            }
+
+            if (connectionMethod == ConnectionMethod.SerialOverLAN && unitId == 255)
+            {
+                throw new ArgumentOutOfRangeException(nameof(unitId), "The Unit ID for a Serial Over LAN Modbus Device cannot be '255'");
+            }
+
             _unitId = unitId;
 
             _connectionMethod = connectionMethod;
@@ -279,7 +289,7 @@ namespace RICADO.Modbus
                 throw new ArgumentOutOfRangeException(nameof(length), "The Length cannot be Zero");
             }
 
-            if (length > MaximumCoilsReadLength)
+            if (length > MaximumRegistersReadLength)
             {
                 throw new ArgumentOutOfRangeException(nameof(length), "The Length is greater than the Maximum Allowed Value of '" + MaximumRegistersReadLength + "'");
             }
@@ -316,7 +326,7 @@ namespace RICADO.Modbus
                 throw new ArgumentOutOfRangeException(nameof(length), "The Length cannot be Zero");
             }
 
-            if (length > MaximumCoilsReadLength)
+            if (length > MaximumRegistersReadLength)
             {
                 throw new ArgumentOutOfRangeException(nameof(length), "The Length is greater than the Maximum Allowed Value of '" + MaximumRegistersReadLength + "'");
             }
@@ -336,7 +346,7 @@ namespace RICADO.Modbus
             };
         }
 
-        public async Task<WriteCoilsResult> WriteHoldingCoil(bool value, ushort address, CancellationToken cancellationToken)
+        public async Task<WriteCoilsResult> WriteHoldingCoilAsync(bool value, ushort address, CancellationToken cancellationToken)
         {
             if (address > MaximumAddress)
             {
@@ -359,7 +369,7 @@ namespace RICADO.Modbus
             };
         }
 
-        public async Task<WriteCoilsResult> WriteHoldingCoils(bool[] values, ushort startAddress, CancellationToken cancellationToken)
+        public async Task<WriteCoilsResult> WriteHoldingCoilsAsync(bool[] values, ushort startAddress, CancellationToken cancellationToken)
         {
             if (startAddress > MaximumAddress)
             {
@@ -392,7 +402,7 @@ namespace RICADO.Modbus
             };
         }
 
-        public async Task<WriteRegistersResult> WriteHoldingRegister(short value, ushort address, CancellationToken cancellationToken)
+        public async Task<WriteRegistersResult> WriteHoldingRegisterAsync(short value, ushort address, CancellationToken cancellationToken)
         {
             if (address > MaximumAddress)
             {
@@ -415,7 +425,7 @@ namespace RICADO.Modbus
             };
         }
 
-        public async Task<WriteRegistersResult> WriteHoldingRegisters(short[] values, ushort startAddress, CancellationToken cancellationToken)
+        public async Task<WriteRegistersResult> WriteHoldingRegistersAsync(short[] values, ushort startAddress, CancellationToken cancellationToken)
         {
             if (startAddress > MaximumAddress)
             {
@@ -427,7 +437,7 @@ namespace RICADO.Modbus
                 throw new ArgumentOutOfRangeException(nameof(values), "The Values Array cannot be Empty");
             }
 
-            if (values.Length > MaximumCoilsWriteLength)
+            if (values.Length > MaximumRegistersWriteLength)
             {
                 throw new ArgumentOutOfRangeException(nameof(values), "The Values Array Length was greater than the Maximum Allowed of '" + MaximumRegistersWriteLength + "'");
             }
