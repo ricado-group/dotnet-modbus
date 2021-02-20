@@ -23,6 +23,8 @@ namespace RICADO.Modbus.Channels
         private readonly SemaphoreSlim _initializeSemaphore;
         private readonly SemaphoreSlim _requestSemaphore;
 
+        private DateTime _lastMessageTimestamp = DateTime.MinValue;
+
         #endregion
 
 
@@ -99,7 +101,7 @@ namespace RICADO.Modbus.Channels
             }
         }
 
-        public async Task<ProcessRequestResult> ProcessRequestAsync(RTURequest request, int timeout, int retries, CancellationToken cancellationToken)
+        public async Task<ProcessRequestResult> ProcessRequestAsync(RTURequest request, int timeout, int retries, int? delayBetweenMessages, CancellationToken cancellationToken)
         {
             int attempts = 0;
             Memory<byte> responseMessage = new Memory<byte>();
@@ -122,6 +124,13 @@ namespace RICADO.Modbus.Channels
 
                     // Build the Request into a Message we can Send
                     ReadOnlyMemory<byte> requestMessage = request.BuildMessage();
+
+                    TimeSpan timeSinceLastMessage = DateTime.UtcNow.Subtract(_lastMessageTimestamp);
+
+                    if (delayBetweenMessages.HasValue && delayBetweenMessages.Value > 0 && timeSinceLastMessage.TotalMilliseconds < delayBetweenMessages.Value)
+                    {
+                        await Task.Delay(TimeSpan.FromMilliseconds(delayBetweenMessages.Value - timeSinceLastMessage.TotalMilliseconds), cancellationToken);
+                    }
 
                     // Send the Message
                     SendMessageResult sendResult = await sendMessageAsync(request.UnitID, requestMessage, timeout, cancellationToken);

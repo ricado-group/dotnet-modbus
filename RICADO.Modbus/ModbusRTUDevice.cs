@@ -32,6 +32,7 @@ namespace RICADO.Modbus
         private readonly int _port;
         private int _timeout;
         private int _retries;
+        private int? _delayBetweenMessages;
 
         private bool _isInitialized;
 
@@ -81,6 +82,18 @@ namespace RICADO.Modbus
             }
         }
 
+        public int? DelayBetweenMessages
+        {
+            get
+            {
+                return _delayBetweenMessages;
+            }
+            set
+            {
+                _delayBetweenMessages = value;
+            }
+        }
+
         public bool IsInitialized => _isInitialized;
 
         #endregion
@@ -88,7 +101,7 @@ namespace RICADO.Modbus
 
         #region Constructors
 
-        public ModbusRTUDevice(byte unitId, ConnectionMethod connectionMethod, string remoteHost, int port, int timeout = 2000, int retries = 1)
+        public ModbusRTUDevice(byte unitId, ConnectionMethod connectionMethod, string remoteHost, int port, int timeout = 2000, int retries = 1, int? delayBetweenMessages = null)
         {
             if(connectionMethod == ConnectionMethod.SerialOverLAN && unitId == 0)
             {
@@ -136,6 +149,8 @@ namespace RICADO.Modbus
             }
 
             _retries = retries;
+
+            _delayBetweenMessages = delayBetweenMessages;
         }
 
         #endregion
@@ -222,7 +237,7 @@ namespace RICADO.Modbus
 
             ReadHoldingCoilsRequest request = ReadHoldingCoilsRequest.CreateNew(this, startAddress, length);
 
-            ProcessRequestResult requestResult = await _channel.ProcessRequestAsync(request, _timeout, _retries, cancellationToken);
+            ProcessRequestResult requestResult = await _channel.ProcessRequestAsync(request, _timeout, _retries, _delayBetweenMessages, cancellationToken);
 
             return new ReadCoilsResult
             {
@@ -259,7 +274,7 @@ namespace RICADO.Modbus
 
             ReadInputCoilsRequest request = ReadInputCoilsRequest.CreateNew(this, startAddress, length);
 
-            ProcessRequestResult requestResult = await _channel.ProcessRequestAsync(request, _timeout, _retries, cancellationToken);
+            ProcessRequestResult requestResult = await _channel.ProcessRequestAsync(request, _timeout, _retries, _delayBetweenMessages, cancellationToken);
 
             return new ReadCoilsResult
             {
@@ -296,7 +311,7 @@ namespace RICADO.Modbus
 
             ReadHoldingRegistersRequest request = ReadHoldingRegistersRequest.CreateNew(this, startAddress, length);
 
-            ProcessRequestResult requestResult = await _channel.ProcessRequestAsync(request, _timeout, _retries, cancellationToken);
+            ProcessRequestResult requestResult = await _channel.ProcessRequestAsync(request, _timeout, _retries, _delayBetweenMessages, cancellationToken);
 
             return new ReadRegistersResult
             {
@@ -333,7 +348,7 @@ namespace RICADO.Modbus
 
             ReadInputRegistersRequest request = ReadInputRegistersRequest.CreateNew(this, startAddress, length);
 
-            ProcessRequestResult requestResult = await _channel.ProcessRequestAsync(request, _timeout, _retries, cancellationToken);
+            ProcessRequestResult requestResult = await _channel.ProcessRequestAsync(request, _timeout, _retries, _delayBetweenMessages, cancellationToken);
 
             return new ReadRegistersResult
             {
@@ -355,7 +370,7 @@ namespace RICADO.Modbus
 
             WriteHoldingCoilRequest request = WriteHoldingCoilRequest.CreateNew(this, address, value);
 
-            ProcessRequestResult requestResult = await _channel.ProcessRequestAsync(request, _timeout, _retries, cancellationToken);
+            ProcessRequestResult requestResult = await _channel.ProcessRequestAsync(request, _timeout, _retries, _delayBetweenMessages, cancellationToken);
 
             WriteHoldingCoilResponse.Validate(request, requestResult.Response);
 
@@ -388,7 +403,7 @@ namespace RICADO.Modbus
 
             WriteHoldingCoilsRequest request = WriteHoldingCoilsRequest.CreateNew(this, startAddress, values);
 
-            ProcessRequestResult requestResult = await _channel.ProcessRequestAsync(request, _timeout, _retries, cancellationToken);
+            ProcessRequestResult requestResult = await _channel.ProcessRequestAsync(request, _timeout, _retries, _delayBetweenMessages, cancellationToken);
 
             WriteHoldingCoilsResponse.Validate(request, requestResult.Response);
 
@@ -411,7 +426,7 @@ namespace RICADO.Modbus
 
             WriteHoldingRegisterRequest request = WriteHoldingRegisterRequest.CreateNew(this, address, value);
 
-            ProcessRequestResult requestResult = await _channel.ProcessRequestAsync(request, _timeout, _retries, cancellationToken);
+            ProcessRequestResult requestResult = await _channel.ProcessRequestAsync(request, _timeout, _retries, _delayBetweenMessages, cancellationToken);
 
             WriteHoldingRegisterResponse.Validate(request, requestResult.Response);
 
@@ -444,7 +459,7 @@ namespace RICADO.Modbus
 
             WriteHoldingRegistersRequest request = WriteHoldingRegistersRequest.CreateNew(this, startAddress, values);
 
-            ProcessRequestResult requestResult = await _channel.ProcessRequestAsync(request, _timeout, _retries, cancellationToken);
+            ProcessRequestResult requestResult = await _channel.ProcessRequestAsync(request, _timeout, _retries, _delayBetweenMessages, cancellationToken);
 
             WriteHoldingRegistersResponse.Validate(request, requestResult.Response);
 

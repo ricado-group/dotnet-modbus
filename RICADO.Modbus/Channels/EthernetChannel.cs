@@ -85,7 +85,7 @@ namespace RICADO.Modbus.Channels
             return initializeClient(timeout, cancellationToken);
         }
 
-        public async Task<ProcessRequestResult> ProcessRequestAsync(RTURequest request, int timeout, int retries, CancellationToken cancellationToken)
+        public async Task<ProcessRequestResult> ProcessRequestAsync(RTURequest request, int timeout, int retries, int? delayBetweenMessages, CancellationToken cancellationToken)
         {
             int attempts = 0;
             Memory<byte> responseMessage = new Memory<byte>();
