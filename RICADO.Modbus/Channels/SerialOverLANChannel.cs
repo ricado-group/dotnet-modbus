@@ -107,7 +107,7 @@ namespace RICADO.Modbus.Channels
             int packetsSent = 0;
             int bytesReceived = 0;
             int packetsReceived = 0;
-            DateTime startTimestamp = DateTime.Now;
+            DateTime startTimestamp = DateTime.UtcNow;
 
             while (attempts <= retries)
             {
@@ -162,7 +162,7 @@ namespace RICADO.Modbus.Channels
                     PacketsSent = packetsSent,
                     BytesReceived = bytesReceived,
                     PacketsReceived = packetsReceived,
-                    Duration = DateTime.Now.Subtract(startTimestamp).TotalMilliseconds,
+                    Duration = DateTime.UtcNow.Subtract(startTimestamp).TotalMilliseconds,
                     Response = RTUResponse.CreateNew(responseMessage, request),
                 };
             }
@@ -253,12 +253,12 @@ namespace RICADO.Modbus.Channels
             try
             {
                 List<byte> receivedData = new List<byte>();
-                DateTime startTimestamp = DateTime.Now;
+                DateTime startTimestamp = DateTime.UtcNow;
 
-                while (DateTime.Now.Subtract(startTimestamp).TotalMilliseconds < timeout && receivedData.Count < RTUResponse.GetMessageLengthHint(request, receivedData) + 3)
+                while (DateTime.UtcNow.Subtract(startTimestamp).TotalMilliseconds < timeout && receivedData.Count < RTUResponse.GetMessageLengthHint(request, receivedData) + 3)
                 {
                     Memory<byte> buffer = new byte[300];
-                    TimeSpan receiveTimeout = TimeSpan.FromMilliseconds(timeout).Subtract(DateTime.Now.Subtract(startTimestamp));
+                    TimeSpan receiveTimeout = TimeSpan.FromMilliseconds(timeout).Subtract(DateTime.UtcNow.Subtract(startTimestamp));
 
                     if (receiveTimeout.TotalMilliseconds >= 50)
                     {
