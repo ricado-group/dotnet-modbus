@@ -58,14 +58,12 @@ namespace RICADO.Modbus.Channels
 
         public void Dispose()
         {
-            if (_client == null)
-            {
-                return;
-            }
-
             try
             {
-                _client.Dispose();
+                _client?.Dispose();
+            }
+            catch
+            {
             }
             finally
             {
@@ -80,9 +78,23 @@ namespace RICADO.Modbus.Channels
 
         #region Internal Methods
 
-        public Task InitializeAsync(int timeout, CancellationToken cancellationToken)
+        public async Task InitializeAsync(int timeout, CancellationToken cancellationToken)
         {
-            return initializeClient(timeout, cancellationToken);
+            try
+            {
+                if(!_semaphore.Wait(0))
+                {
+                    await _semaphore.WaitAsync(cancellationToken);
+                }
+                
+                destroyClient();
+
+                await initializeClient(timeout, cancellationToken);
+            }
+            finally
+            {
+                _semaphore.Release();
+            }
         }
 
         public async Task<ProcessRequestResult> ProcessRequestAsync(RTURequest request, int timeout, int retries, int? delayBetweenMessages, CancellationToken cancellationToken)
@@ -99,7 +111,10 @@ namespace RICADO.Modbus.Channels
             {
                 try
                 {
-                    await _semaphore.WaitAsync(cancellationToken);
+                    if (!_semaphore.Wait(0))
+                    {
+                        await _semaphore.WaitAsync(cancellationToken);
+                    }
 
                     if (attempts > 0)
                     {
@@ -124,7 +139,7 @@ namespace RICADO.Modbus.Channels
 
                     break;
                 }
-                catch (ModbusException)
+                catch (Exception)
                 {
                     if (attempts >= retries)
                     {
@@ -165,17 +180,12 @@ namespace RICADO.Modbus.Channels
 
         private Task initializeClient(int timeout, CancellationToken cancellationToken)
         {
-            if (_client != null)
-            {
-                return Task.CompletedTask;
-            }
-
             _client = new TcpClient(RemoteHost, Port);
 
             return _client.ConnectAsync(timeout, cancellationToken);
         }
 
-        private async Task destroyAndInitializeClient(int timeout, CancellationToken cancellationToken)
+        private void destroyClient()
         {
             try
             {
@@ -185,10 +195,19 @@ namespace RICADO.Modbus.Channels
             {
                 _client = null;
             }
+        }
+
+        private async Task destroyAndInitializeClient(int timeout, CancellationToken cancellationToken)
+        {
+            destroyClient();
 
             try
             {
                 await initializeClient(timeout, cancellationToken);
+            }
+            catch (ObjectDisposedException)
+            {
+                throw new ModbusException("Failed to Re-Connect to Modbus TCP Device '" + RemoteHost + ":" + Port + "' - The underlying Socket Connection has been Closed");
             }
             catch (TimeoutException)
             {
@@ -214,6 +233,10 @@ namespace RICADO.Modbus.Channels
             {
                 result.Bytes += await _client.SendAsync(modbusTcpMessage, timeout, cancellationToken);
                 result.Packets += 1;
+            }
+            catch (ObjectDisposedException)
+            {
+                throw new ModbusException("Failed to Send RTU Message to Modbus TCP Device '" + RemoteHost + ":" + Port + "' - The underlying Socket Connection has been Closed");
             }
             catch (TimeoutException)
             {
@@ -331,6 +354,10 @@ namespace RICADO.Modbus.Channels
                 }
 
                 result.Message = receivedData.ToArray();
+            }
+            catch (ObjectDisposedException)
+            {
+                throw new ModbusException("Failed to Receive RTU Message from Modbus TCP Device '" + RemoteHost + ":" + Port + "' - The underlying Socket Connection has been Closed");
             }
             catch (TimeoutException)
             {

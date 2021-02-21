@@ -19,10 +19,15 @@ namespace RICADO.Modbus.Channels
         private TcpClient _client;
 
         private bool _isInitialized = false;
+        private readonly object _isInitializedLock = new object();
+
+        private readonly HashSet<Guid> _registeredDevices = new HashSet<Guid>();
+        private readonly object _registeredDevicesLock = new object();
 
         private readonly SemaphoreSlim _initializeSemaphore;
         private readonly SemaphoreSlim _requestSemaphore;
 
+        private DateTime _lastInitializeAttempt = DateTime.MinValue;
         private DateTime _lastMessageTimestamp = DateTime.MinValue;
 
         #endregion
@@ -33,6 +38,28 @@ namespace RICADO.Modbus.Channels
         internal string RemoteHost => _remoteHost;
 
         internal int Port => _port;
+
+        internal bool IsInitialized
+        {
+            get
+            {
+                lock(_isInitializedLock)
+                {
+                    return _isInitialized;
+                }
+            }
+        }
+
+        internal IReadOnlySet<Guid> RegisteredDevices
+        {
+            get
+            {
+                lock(_registeredDevicesLock)
+                {
+                    return _registeredDevices;
+                }
+            }
+        }
 
         #endregion
 
@@ -55,14 +82,12 @@ namespace RICADO.Modbus.Channels
 
         public void Dispose()
         {
-            if (_client == null)
-            {
-                return;
-            }
-
             try
             {
-                _client.Dispose();
+                _client?.Dispose();
+            }
+            catch
+            {
             }
             finally
             {
@@ -71,6 +96,11 @@ namespace RICADO.Modbus.Channels
 
             _initializeSemaphore?.Dispose();
             _requestSemaphore?.Dispose();
+
+            lock(_isInitializedLock)
+            {
+                _isInitialized = false;
+            }
         }
 
         #endregion
@@ -80,24 +110,48 @@ namespace RICADO.Modbus.Channels
 
         public async Task InitializeAsync(int timeout, CancellationToken cancellationToken)
         {
+            lock(_isInitializedLock)
+            {
+                if(_isInitialized)
+                {
+                    return;
+                }
+            }
+            
             try
             {
                 await _initializeSemaphore.WaitAsync(cancellationToken);
 
-                cancellationToken.ThrowIfCancellationRequested();
-
-                if(_isInitialized == true)
+                if(IsInitialized)
                 {
                     return;
                 }
-                
-                await initializeClient(timeout, cancellationToken);
 
-                _isInitialized = true;
+                int retrySeconds = RegisteredDevices.Count < 10 ? RegisteredDevices.Count : 10;
+
+                if (RegisteredDevices.Count == 1 || DateTime.UtcNow.Subtract(_lastInitializeAttempt).TotalSeconds >= retrySeconds)
+                {
+                    _lastInitializeAttempt = DateTime.UtcNow;
+                    
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    destroyClient();
+
+                    await initializeClient(timeout, cancellationToken);
+                }
+                else
+                {
+                    throw new ModbusException("Too Many Initialize Attempts for the Serial Over LAN Channel '" + RemoteHost + ":" + Port + "' - Retry after " + retrySeconds + " seconds");
+                }
             }
             finally
             {
                 _initializeSemaphore.Release();
+            }
+
+            lock(_isInitializedLock)
+            {
+                _isInitialized = true;
             }
         }
 
@@ -147,7 +201,7 @@ namespace RICADO.Modbus.Channels
 
                     break;
                 }
-                catch (ModbusException)
+                catch (Exception)
                 {
                     if (attempts >= retries)
                     {
@@ -181,6 +235,25 @@ namespace RICADO.Modbus.Channels
             }
         }
 
+        public void RegisterDevice(Guid uniqueId)
+        {
+            lock(_registeredDevicesLock)
+            {
+                if(_registeredDevices.Contains(uniqueId) == false)
+                {
+                    _registeredDevices.Add(uniqueId);
+                }
+            }
+        }
+
+        public void UnregisterDevice(Guid uniqueId)
+        {
+            lock(_registeredDevicesLock)
+            {
+                _registeredDevices.RemoveWhere(id => id == uniqueId);
+            }
+        }
+
         #endregion
 
 
@@ -188,17 +261,12 @@ namespace RICADO.Modbus.Channels
 
         private Task initializeClient(int timeout, CancellationToken cancellationToken)
         {
-            if (_client != null)
-            {
-                return Task.CompletedTask;
-            }
-
             _client = new TcpClient(RemoteHost, Port);
 
             return _client.ConnectAsync(timeout, cancellationToken);
         }
 
-        private async Task destroyAndInitializeClient(byte unitId, int timeout, CancellationToken cancellationToken)
+        private void destroyClient()
         {
             try
             {
@@ -208,10 +276,19 @@ namespace RICADO.Modbus.Channels
             {
                 _client = null;
             }
+        }
+
+        private async Task destroyAndInitializeClient(byte unitId, int timeout, CancellationToken cancellationToken)
+        {
+            destroyClient();
 
             try
             {
                 await initializeClient(timeout, cancellationToken);
+            }
+            catch (ObjectDisposedException)
+            {
+                throw new ModbusException("Failed to Re-Connect to Modbus Device ID '" + unitId + "' on '" + RemoteHost + ":" + Port + "' - The underlying Socket Connection has been Closed");
             }
             catch (TimeoutException)
             {
@@ -237,6 +314,10 @@ namespace RICADO.Modbus.Channels
             {
                 result.Bytes += await _client.SendAsync(modbusMessage, timeout, cancellationToken);
                 result.Packets += 1;
+            }
+            catch (ObjectDisposedException)
+            {
+                throw new ModbusException("Failed to Send RTU Message to Modbus Device ID '" + unitId + "' on '" + RemoteHost + ":" + Port + "' - The underlying Socket Connection has been Closed");
             }
             catch (TimeoutException)
             {
@@ -303,6 +384,10 @@ namespace RICADO.Modbus.Channels
                 receivedData.RemoveRange(receivedData.Count - 2, 2);
 
                 result.Message = receivedData.ToArray();
+            }
+            catch (ObjectDisposedException)
+            {
+                throw new ModbusException("Failed to Receive RTU Message from Modbus Device ID '" + unitId + "' on '" + RemoteHost + ":" + Port + "' - The underlying Socket Connection has been Closed");
             }
             catch (TimeoutException)
             {

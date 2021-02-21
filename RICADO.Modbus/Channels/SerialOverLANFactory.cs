@@ -15,7 +15,7 @@ namespace RICADO.Modbus.Channels
 
         private readonly ConcurrentDictionary<string, SerialOverLANChannel> _channels = new ConcurrentDictionary<string, SerialOverLANChannel>();
 
-        private readonly ConcurrentDictionary<string, List<byte>> _channelDevices = new ConcurrentDictionary<string, List<byte>>();
+        private readonly SemaphoreSlim _semaphore;
 
         #endregion
 
@@ -24,8 +24,6 @@ namespace RICADO.Modbus.Channels
 
         public static SerialOverLANFactory Instance => _instance;
 
-        public ConcurrentDictionary<string, SerialOverLANChannel> Channels => _channels;
-
         #endregion
 
 
@@ -33,6 +31,7 @@ namespace RICADO.Modbus.Channels
 
         public SerialOverLANFactory()
         {
+            _semaphore = new SemaphoreSlim(1, 1);
         }
 
         static SerialOverLANFactory()
@@ -45,89 +44,121 @@ namespace RICADO.Modbus.Channels
 
         #region Public Methods
 
-        public async Task<SerialOverLANChannel> GetOrCreate(byte unitId, string remoteHost, int port, int timeout, CancellationToken cancellationToken)
+        public async Task<SerialOverLANChannel> GetOrCreate(Guid uniqueId, string remoteHost, int port, int timeout, CancellationToken cancellationToken)
         {
-            if(remoteHost == null)
+            if (uniqueId == Guid.Empty)
+            {
+                throw new ArgumentException("The Device Unique ID cannot be Empty", nameof(uniqueId));
+            }
+
+            if (remoteHost == null)
             {
                 throw new ArgumentNullException(nameof(remoteHost));
             }
 
-            // TODO: Consider other checks for Unit ID, Remote Host, Port and Timeout
+            if(remoteHost.Length == 0)
+            {
+                throw new ArgumentException("The Remote Host cannot be Empty", nameof(remoteHost));
+            }
+
+            if (port <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(port), "The Port cannot be less than 1");
+            }
 
             string channelKey = getChannelKey(remoteHost, port);
 
-            registerChannelDevice(unitId, channelKey);
+            SerialOverLANChannel channel;
 
-            SerialOverLANChannel channel = _channels.GetOrAdd(channelKey, (key) =>
+            try
             {
-                return new SerialOverLANChannel(remoteHost, port);
-            });
+                if (!_semaphore.Wait(0))
+                {
+                    await _semaphore.WaitAsync(cancellationToken);
+                }
+
+                channel = _channels.GetOrAdd(channelKey, (key) =>
+                {
+                    return new SerialOverLANChannel(remoteHost, port);
+                });
+
+                channel.RegisterDevice(uniqueId);
+            }
+            finally
+            {
+                _semaphore.Release();
+            }
+
+            if (channel.IsInitialized == true)
+            {
+                return channel;
+            }
 
             await channel.InitializeAsync(timeout, cancellationToken);
 
             return channel;
         }
 
-        public bool TryRemove(byte unitId, string remoteHost, int port)
+        public async Task<bool> TryRemove(Guid uniqueId, string remoteHost, int port, CancellationToken cancellationToken)
         {
-            if(remoteHost == null)
+            if(uniqueId == Guid.Empty)
             {
                 return false;
             }
 
-            // TODO: Consider other checks for Unit ID, Remote Host and Port
+            if (remoteHost == null || remoteHost.Length == 0)
+            {
+                return false;
+            }
+
+            if(port <= 0)
+            {
+                return false;
+            }
 
             string channelKey = getChannelKey(remoteHost, port);
 
-            unregisterChannelDevice(unitId, channelKey);
-
-            if(_channelDevices.TryGetValue(channelKey, out List<byte> devices) && devices.Count > 0)
+            try
             {
+                if(!_semaphore.Wait(0))
+                {
+                    await _semaphore.WaitAsync(cancellationToken);
+                }
+
+                if(_channels.TryGetValue(channelKey, out SerialOverLANChannel existingChannel))
+                {
+                    existingChannel.UnregisterDevice(uniqueId);
+
+                    if(existingChannel.RegisteredDevices.Count > 0)
+                    {
+                        return true;
+                    }
+                }
+
+                if(_channels.TryRemove(channelKey, out SerialOverLANChannel removedChannel))
+                {
+                    try
+                    {
+                        removedChannel.Dispose();
+                    }
+                    catch
+                    {
+                        return false;
+                    }
+                }
+
                 return true;
             }
-
-            _channelDevices.TryRemove(channelKey, out _);
-
-            if(_channels.TryRemove(channelKey, out SerialOverLANChannel channel))
+            finally
             {
-                try
-                {
-                    channel.Dispose();
-                }
-                catch
-                {
-                    return false;
-                }
+                _semaphore.Release();
             }
-
-            return true;
         }
 
         #endregion
 
 
         #region Private Methods
-
-        private void registerChannelDevice(byte unitId, string channelKey)
-        {
-            List<byte> devices = _channelDevices.GetOrAdd(channelKey, (key) =>
-            {
-                return new List<byte>();
-            });
-
-            if(devices.Contains(unitId) == false)
-            {
-                devices.Add(unitId);
-            }
-        }
-
-        private void unregisterChannelDevice(byte unitId, string channelKey)
-        {
-            if(_channelDevices.TryGetValue(channelKey, out List<byte> devices))
-            {
-                devices.RemoveAll(device => device == unitId);
-            }
-        }
 
         private static string getChannelKey(string remoteHost, int port)
         {

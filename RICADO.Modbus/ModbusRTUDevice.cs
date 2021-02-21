@@ -34,9 +34,12 @@ namespace RICADO.Modbus
         private int _retries;
         private int? _delayBetweenMessages;
 
-        private bool _isInitialized;
+        private bool _isInitialized = false;
+        private readonly object _isInitializedLock = new object();
 
         private IChannel _channel;
+
+        private readonly Guid _internalUniqueId;
 
         #endregion
 
@@ -44,6 +47,8 @@ namespace RICADO.Modbus
         #region Internal Properties
 
         internal IChannel Channel => _channel;
+
+        internal Guid InternalUniqueID => _internalUniqueId;
 
         #endregion
 
@@ -94,7 +99,16 @@ namespace RICADO.Modbus
             }
         }
 
-        public bool IsInitialized => _isInitialized;
+        public bool IsInitialized
+        {
+            get
+            {
+                lock(_isInitializedLock)
+                {
+                    return _isInitialized;
+                }
+            }
+        }
 
         #endregion
 
@@ -151,6 +165,8 @@ namespace RICADO.Modbus
             _retries = retries;
 
             _delayBetweenMessages = delayBetweenMessages;
+
+            _internalUniqueId = Guid.NewGuid();
         }
 
         #endregion
@@ -160,9 +176,12 @@ namespace RICADO.Modbus
 
         public async Task InitializeAsync(CancellationToken cancellationToken)
         {
-            if (_isInitialized == true)
+            lock (_isInitializedLock)
             {
-                return;
+                if (_isInitialized == true)
+                {
+                    return;
+                }
             }
 
             // Initialize the Channel
@@ -174,6 +193,14 @@ namespace RICADO.Modbus
 
                     await _channel.InitializeAsync(_timeout, cancellationToken);
                 }
+                catch (ObjectDisposedException)
+                {
+                    throw new ModbusException("Failed to Create the Ethernet TCP Communication Channel for Modbus TCP Device'" + _remoteHost + ":" + _port + "' - The underlying Socket Connection has been Closed");
+                }
+                catch (TimeoutException)
+                {
+                    throw new ModbusException("Failed to Create the Ethernet TCP Communication Channel within the Timeout Period for Modbus TCP Device'" + _remoteHost + ":" + _port + "'");
+                }
                 catch (System.Net.Sockets.SocketException e)
                 {
                     throw new ModbusException("Failed to Create the Ethernet TCP Communication Channel for Modbus TCP Device'" + _remoteHost + ":" + _port + "'", e);
@@ -183,7 +210,15 @@ namespace RICADO.Modbus
             {
                 try
                 {
-                    _channel = await SerialOverLANFactory.Instance.GetOrCreate(_unitId, _remoteHost, _port, _timeout, cancellationToken);
+                    _channel = await SerialOverLANFactory.Instance.GetOrCreate(_internalUniqueId, _remoteHost, _port, _timeout, cancellationToken);
+                }
+                catch (ObjectDisposedException)
+                {
+                    throw new ModbusException("Failed to Create the Serial Over LAN Communication Channel for Modbus Device ID '" + _unitId + "' on '" + _remoteHost + ":" + _port + "' - The underlying Socket Connection has been Closed");
+                }
+                catch (TimeoutException)
+                {
+                    throw new ModbusException("Failed to Create the Serial Over LAN Communication Channel within the Timeout Period for Modbus Device ID '" + _unitId + "' on '" + _remoteHost + ":" + _port + "'");
                 }
                 catch (System.Net.Sockets.SocketException e)
                 {
@@ -191,7 +226,10 @@ namespace RICADO.Modbus
                 }
             }
 
-            _isInitialized = true;
+            lock(_isInitializedLock)
+            {
+                _isInitialized = true;
+            }
         }
 
         public void Dispose()
@@ -204,10 +242,10 @@ namespace RICADO.Modbus
             }
             else if(_channel is SerialOverLANChannel)
             {
-                SerialOverLANFactory.Instance.TryRemove(_unitId, _remoteHost, _port);
+                _ = Task.Run(async () => { await SerialOverLANFactory.Instance.TryRemove(_internalUniqueId, _remoteHost, _port, CancellationToken.None); });
             }
 
-            if (_isInitialized == true)
+            lock (_isInitializedLock)
             {
                 _isInitialized = false;
             }
@@ -220,6 +258,14 @@ namespace RICADO.Modbus
 
         public async Task<ReadCoilsResult> ReadHoldingCoilsAsync(ushort startAddress, ushort length, CancellationToken cancellationToken)
         {
+            lock(_isInitializedLock)
+            {
+                if(_isInitialized == false)
+                {
+                    throw new ModbusException("This Modbus RTU Device must be Initialized first before any Requests can be Processed");
+                }
+            }
+            
             if(startAddress > MaximumAddress)
             {
                 throw new ArgumentOutOfRangeException(nameof(startAddress), "The Start Address is greater than the Maximum Allowed Value of '" + MaximumAddress + "'");
@@ -257,6 +303,14 @@ namespace RICADO.Modbus
 
         public async Task<ReadCoilsResult> ReadInputCoilsAsync(ushort startAddress, ushort length, CancellationToken cancellationToken)
         {
+            lock (_isInitializedLock)
+            {
+                if (_isInitialized == false)
+                {
+                    throw new ModbusException("This Modbus RTU Device must be Initialized first before any Requests can be Processed");
+                }
+            }
+
             if (startAddress > MaximumAddress)
             {
                 throw new ArgumentOutOfRangeException(nameof(startAddress), "The Start Address is greater than the Maximum Allowed Value of '" + MaximumAddress + "'");
@@ -294,6 +348,14 @@ namespace RICADO.Modbus
 
         public async Task<ReadRegistersResult> ReadHoldingRegistersAsync(ushort startAddress, ushort length, CancellationToken cancellationToken)
         {
+            lock (_isInitializedLock)
+            {
+                if (_isInitialized == false)
+                {
+                    throw new ModbusException("This Modbus RTU Device must be Initialized first before any Requests can be Processed");
+                }
+            }
+
             if (startAddress > MaximumAddress)
             {
                 throw new ArgumentOutOfRangeException(nameof(startAddress), "The Start Address is greater than the Maximum Allowed Value of '" + MaximumAddress + "'");
@@ -331,6 +393,14 @@ namespace RICADO.Modbus
 
         public async Task<ReadRegistersResult> ReadInputRegistersAsync(ushort startAddress, ushort length, CancellationToken cancellationToken)
         {
+            lock (_isInitializedLock)
+            {
+                if (_isInitialized == false)
+                {
+                    throw new ModbusException("This Modbus RTU Device must be Initialized first before any Requests can be Processed");
+                }
+            }
+
             if (startAddress > MaximumAddress)
             {
                 throw new ArgumentOutOfRangeException(nameof(startAddress), "The Start Address is greater than the Maximum Allowed Value of '" + MaximumAddress + "'");
@@ -363,6 +433,14 @@ namespace RICADO.Modbus
 
         public async Task<WriteCoilsResult> WriteHoldingCoilAsync(bool value, ushort address, CancellationToken cancellationToken)
         {
+            lock (_isInitializedLock)
+            {
+                if (_isInitialized == false)
+                {
+                    throw new ModbusException("This Modbus RTU Device must be Initialized first before any Requests can be Processed");
+                }
+            }
+
             if (address > MaximumAddress)
             {
                 throw new ArgumentOutOfRangeException(nameof(address), "The Address is greater than the Maximum Allowed Value of '" + MaximumAddress + "'");
@@ -386,6 +464,14 @@ namespace RICADO.Modbus
 
         public async Task<WriteCoilsResult> WriteHoldingCoilsAsync(bool[] values, ushort startAddress, CancellationToken cancellationToken)
         {
+            lock (_isInitializedLock)
+            {
+                if (_isInitialized == false)
+                {
+                    throw new ModbusException("This Modbus RTU Device must be Initialized first before any Requests can be Processed");
+                }
+            }
+
             if (startAddress > MaximumAddress)
             {
                 throw new ArgumentOutOfRangeException(nameof(startAddress), "The Start Address is greater than the Maximum Allowed Value of '" + MaximumAddress + "'");
@@ -419,6 +505,14 @@ namespace RICADO.Modbus
 
         public async Task<WriteRegistersResult> WriteHoldingRegisterAsync(short value, ushort address, CancellationToken cancellationToken)
         {
+            lock (_isInitializedLock)
+            {
+                if (_isInitialized == false)
+                {
+                    throw new ModbusException("This Modbus RTU Device must be Initialized first before any Requests can be Processed");
+                }
+            }
+
             if (address > MaximumAddress)
             {
                 throw new ArgumentOutOfRangeException(nameof(address), "The Address is greater than the Maximum Allowed Value of '" + MaximumAddress + "'");
@@ -442,6 +536,14 @@ namespace RICADO.Modbus
 
         public async Task<WriteRegistersResult> WriteHoldingRegistersAsync(short[] values, ushort startAddress, CancellationToken cancellationToken)
         {
+            lock (_isInitializedLock)
+            {
+                if (_isInitialized == false)
+                {
+                    throw new ModbusException("This Modbus RTU Device must be Initialized first before any Requests can be Processed");
+                }
+            }
+
             if (startAddress > MaximumAddress)
             {
                 throw new ArgumentOutOfRangeException(nameof(startAddress), "The Start Address is greater than the Maximum Allowed Value of '" + MaximumAddress + "'");
