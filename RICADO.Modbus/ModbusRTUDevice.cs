@@ -298,7 +298,7 @@ namespace RICADO.Modbus
 
         public Task<ReadCoilsResult> ReadInputCoilAsync(ushort address, CancellationToken cancellationToken)
         {
-            return ReadHoldingCoilsAsync(address, 1, cancellationToken);
+            return ReadInputCoilsAsync(address, 1, cancellationToken);
         }
 
         public async Task<ReadCoilsResult> ReadInputCoilsAsync(ushort startAddress, ushort length, CancellationToken cancellationToken)
