@@ -50,7 +50,11 @@ namespace RICADO.Modbus.Channels
             }
         }
 
+#if NETSTANDARD
+        internal HashSet<Guid> RegisteredDevices
+#else
         internal IReadOnlySet<Guid> RegisteredDevices
+#endif
         {
             get
             {
@@ -158,12 +162,17 @@ namespace RICADO.Modbus.Channels
         public async Task<ProcessRequestResult> ProcessRequestAsync(RTURequest request, int timeout, int retries, int? delayBetweenMessages, CancellationToken cancellationToken)
         {
             int attempts = 0;
-            Memory<byte> responseMessage = new Memory<byte>();
             int bytesSent = 0;
             int packetsSent = 0;
             int bytesReceived = 0;
             int packetsReceived = 0;
             DateTime startTimestamp = DateTime.UtcNow;
+
+#if NETSTANDARD
+            byte[] responseMessage = Array.Empty<byte>();
+#else
+            Memory<byte> responseMessage = new Memory<byte>();
+#endif
 
             while (attempts <= retries)
             {
@@ -177,7 +186,11 @@ namespace RICADO.Modbus.Channels
                     }
 
                     // Build the Request into a Message we can Send
+#if NETSTANDARD
+                    byte[] requestMessage = request.BuildMessage();
+#else
                     ReadOnlyMemory<byte> requestMessage = request.BuildMessage();
+#endif
 
                     TimeSpan timeSinceLastMessage = DateTime.UtcNow.Subtract(_lastMessageTimestamp);
 
@@ -300,7 +313,11 @@ namespace RICADO.Modbus.Channels
             }
         }
 
+#if NETSTANDARD
+        private async Task<SendMessageResult> sendMessageAsync(byte unitId, byte[] message, int timeout, CancellationToken cancellationToken)
+#else
         private async Task<SendMessageResult> sendMessageAsync(byte unitId, ReadOnlyMemory<byte> message, int timeout, CancellationToken cancellationToken)
+#endif
         {
             SendMessageResult result = new SendMessageResult
             {
@@ -308,7 +325,11 @@ namespace RICADO.Modbus.Channels
                 Packets = 0,
             };
 
+#if NETSTANDARD
+            byte[] modbusMessage = buildSerialMessage(unitId, message);
+#else
             ReadOnlyMemory<byte> modbusMessage = buildSerialMessage(unitId, message);
+#endif
 
             try
             {
@@ -333,12 +354,21 @@ namespace RICADO.Modbus.Channels
 
         private async Task<ReceiveMessageResult> receiveMessageAsync(RTURequest request, byte unitId, int timeout, CancellationToken cancellationToken)
         {
+#if NETSTANDARD
+            ReceiveMessageResult result = new ReceiveMessageResult
+            {
+                Bytes = 0,
+                Packets = 0,
+                Message = Array.Empty<byte>(),
+            };
+#else
             ReceiveMessageResult result = new ReceiveMessageResult
             {
                 Bytes = 0,
                 Packets = 0,
                 Message = new Memory<byte>(),
             };
+#endif
 
             try
             {
@@ -347,7 +377,11 @@ namespace RICADO.Modbus.Channels
 
                 while (DateTime.UtcNow.Subtract(startTimestamp).TotalMilliseconds < timeout && receivedData.Count < RTUResponse.GetMessageLengthHint(request, receivedData) + 3)
                 {
+#if NETSTANDARD
+                    byte[] buffer = new byte[300];
+#else
                     Memory<byte> buffer = new byte[300];
+#endif
                     TimeSpan receiveTimeout = TimeSpan.FromMilliseconds(timeout).Subtract(DateTime.UtcNow.Subtract(startTimestamp));
 
                     if (receiveTimeout.TotalMilliseconds >= 50)
@@ -356,7 +390,11 @@ namespace RICADO.Modbus.Channels
 
                         if (receivedBytes > 0)
                         {
+#if NETSTANDARD
+                            receivedData.AddRange(buffer.Take(receivedBytes));
+#else
                             receivedData.AddRange(buffer.Slice(0, receivedBytes).ToArray());
+#endif
 
                             result.Bytes += receivedBytes;
                             result.Packets += 1;
@@ -401,7 +439,11 @@ namespace RICADO.Modbus.Channels
             return result;
         }
 
+#if NETSTANDARD
+        private byte[] buildSerialMessage(byte unitId, byte[] message)
+#else
         private ReadOnlyMemory<byte> buildSerialMessage(byte unitId, ReadOnlyMemory<byte> message)
+#endif
         {
             List<byte> serialMessage = new List<byte>();
 

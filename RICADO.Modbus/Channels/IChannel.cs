@@ -7,8 +7,8 @@ namespace RICADO.Modbus.Channels
 {
     internal interface IChannel : IDisposable
     {
-        public Task InitializeAsync(int timeout, CancellationToken cancellationToken);
+        Task InitializeAsync(int timeout, CancellationToken cancellationToken);
 
-        public Task<ProcessRequestResult> ProcessRequestAsync(RTURequest request, int timeout, int retries, int? delayBetweenMessages, CancellationToken cancellationToken);
+        Task<ProcessRequestResult> ProcessRequestAsync(RTURequest request, int timeout, int retries, int? delayBetweenMessages, CancellationToken cancellationToken);
     }
 }

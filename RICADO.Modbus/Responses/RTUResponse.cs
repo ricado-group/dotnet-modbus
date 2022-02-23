@@ -56,7 +56,11 @@ namespace RICADO.Modbus.Responses
 
         #region Internal Methods
 
+#if NETSTANDARD
+        internal static RTUResponse CreateNew(byte[] message, RTURequest request)
+#else
         internal static RTUResponse CreateNew(Memory<byte> message, RTURequest request)
+#endif
         {
             if (message.Length < 2)
             {
@@ -65,7 +69,11 @@ namespace RICADO.Modbus.Responses
 
             RTUResponse response = new RTUResponse();
 
+#if NETSTANDARD
+            byte[] command = message.Take(2).ToArray();
+#else
             byte[] command = message.Slice(0, 2).ToArray();
+#endif
 
             if (ValidateFunctionCode(command[0]) == false)
             {
@@ -81,7 +89,11 @@ namespace RICADO.Modbus.Responses
                 throw new RTUException("Unexpected Function Code '" + Enum.GetName(typeof(enFunctionCode), response.FunctionCode) + "' - Expecting '" + Enum.GetName(typeof(enFunctionCode), request.FunctionCode) + "'");
             }
 
+#if NETSTANDARD
+            response.Data = message.Length > 1 ? message.Skip(1).Take(message.Length - 1).ToArray() : new byte[0];
+#else
             response.Data = message.Length > 1 ? message.Slice(1, message.Length - 1).ToArray() : new byte[0];
+#endif
 
             return response;
         }
@@ -191,19 +203,22 @@ namespace RICADO.Modbus.Responses
                 return;
             }
 
-            RTUException exception = exceptionCode switch
+            switch(exceptionCode)
             {
-                0x00 => null,
-                0x01 => new RTUException("Slave Error - Illegal Function Code"),
-                0x02 => new RTUException("Slave Error - Illegal Data Address"),
-                0x03 => new RTUException("Slave Error - Illegal Data Value in Request"),
-                0x04 => new RTUException("Slave Error - Encountered an Unrecoverable Error"),
-                _ => new RTUException("Unknown Error - Exception Code (0x" + exceptionCode.ToString("X2") + ")"),
-            };
+                case 0x01:
+                    throw new RTUException("Slave Error - Illegal Function Code");
 
-            if (exception != null)
-            {
-                throw exception;
+                case 0x02:
+                    throw new RTUException("Slave Error - Illegal Data Address");
+
+                case 0x03:
+                    throw new RTUException("Slave Error - Illegal Data Value in Request");
+
+                case 0x04:
+                    throw new RTUException("Slave Error - Encountered an Unrecoverable Error");
+
+                default:
+                    throw new RTUException("Unknown Error - Exception Code (0x" + exceptionCode.ToString("X2") + ")");
             }
         }
 

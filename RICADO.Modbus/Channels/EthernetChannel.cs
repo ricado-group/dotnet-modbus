@@ -100,12 +100,17 @@ namespace RICADO.Modbus.Channels
         public async Task<ProcessRequestResult> ProcessRequestAsync(RTURequest request, int timeout, int retries, int? delayBetweenMessages, CancellationToken cancellationToken)
         {
             int attempts = 0;
-            Memory<byte> responseMessage = new Memory<byte>();
             int bytesSent = 0;
             int packetsSent = 0;
             int bytesReceived = 0;
             int packetsReceived = 0;
             DateTime startTimestamp = DateTime.UtcNow;
+
+#if NETSTANDARD
+            byte[] responseMessage = Array.Empty<byte>();
+#else
+            Memory<byte> responseMessage = new Memory<byte>();
+#endif
 
             while (attempts <= retries)
             {
@@ -122,7 +127,11 @@ namespace RICADO.Modbus.Channels
                     }
 
                     // Build the Request into a Message we can Send
+#if NETSTANDARD
+                    byte[] requestMessage = request.BuildMessage();
+#else
                     ReadOnlyMemory<byte> requestMessage = request.BuildMessage();
+#endif
 
                     // Send the Message
                     SendMessageResult sendResult = await sendMessageAsync(request.UnitID, requestMessage, timeout, cancellationToken);
@@ -219,7 +228,11 @@ namespace RICADO.Modbus.Channels
             }
         }
 
+#if NETSTANDARD
+        private async Task<SendMessageResult> sendMessageAsync(byte unitId, byte[] message, int timeout, CancellationToken cancellationToken)
+#else
         private async Task<SendMessageResult> sendMessageAsync(byte unitId, ReadOnlyMemory<byte> message, int timeout, CancellationToken cancellationToken)
+#endif
         {
             SendMessageResult result = new SendMessageResult
             {
@@ -227,7 +240,11 @@ namespace RICADO.Modbus.Channels
                 Packets = 0,
             };
 
+#if NETSTANDARD
+            byte[] modbusTcpMessage = buildMBAPMessage(unitId, message);
+#else
             ReadOnlyMemory<byte> modbusTcpMessage = buildMBAPMessage(unitId, message);
+#endif
 
             try
             {
@@ -252,12 +269,21 @@ namespace RICADO.Modbus.Channels
 
         private async Task<ReceiveMessageResult> receiveMessageAsync(byte unitId, int timeout, CancellationToken cancellationToken)
         {
+#if NETSTANDARD
+            ReceiveMessageResult result = new ReceiveMessageResult
+            {
+                Bytes = 0,
+                Packets = 0,
+                Message = Array.Empty<byte>(),
+            };
+#else
             ReceiveMessageResult result = new ReceiveMessageResult
             {
                 Bytes = 0,
                 Packets = 0,
                 Message = new Memory<byte>(),
             };
+#endif
 
             try
             {
@@ -266,7 +292,12 @@ namespace RICADO.Modbus.Channels
 
                 while (DateTime.UtcNow.Subtract(startTimestamp).TotalMilliseconds < timeout && receivedData.Count < MBAPHeaderLength)
                 {
+#if NETSTANDARD
+                    byte[] buffer = new byte[300];
+#else
                     Memory<byte> buffer = new byte[300];
+#endif
+
                     TimeSpan receiveTimeout = TimeSpan.FromMilliseconds(timeout).Subtract(DateTime.UtcNow.Subtract(startTimestamp));
 
                     if (receiveTimeout.TotalMilliseconds >= 50)
@@ -275,7 +306,11 @@ namespace RICADO.Modbus.Channels
 
                         if (receivedBytes > 0)
                         {
+#if NETSTANDARD
+                            receivedData.AddRange(buffer.Take(receivedBytes));
+#else
                             receivedData.AddRange(buffer.Slice(0, receivedBytes).ToArray());
+#endif
 
                             result.Bytes += receivedBytes;
                             result.Packets += 1;
@@ -310,7 +345,7 @@ namespace RICADO.Modbus.Channels
 
                 byte[] mbapHeader = receivedData.GetRange(0, MBAPHeaderLength).ToArray();
 
-                int tcpMessageDataLength = BitConverter.ToUInt16(new byte[] { receivedData[5], receivedData[4] }) - 1;
+                int tcpMessageDataLength = BitConverter.ToUInt16(new byte[] { receivedData[5], receivedData[4] }, 0) - 1;
 
                 if (tcpMessageDataLength <= 0 || tcpMessageDataLength > byte.MaxValue)
                 {
@@ -325,7 +360,12 @@ namespace RICADO.Modbus.Channels
 
                     while (DateTime.UtcNow.Subtract(startTimestamp).TotalMilliseconds < timeout && receivedData.Count < tcpMessageDataLength)
                     {
+#if NETSTANDARD
+                        byte[] buffer = new byte[300];
+#else
                         Memory<byte> buffer = new byte[300];
+#endif
+
                         TimeSpan receiveTimeout = TimeSpan.FromMilliseconds(timeout).Subtract(DateTime.UtcNow.Subtract(startTimestamp));
 
                         if (receiveTimeout.TotalMilliseconds >= 50)
@@ -334,7 +374,11 @@ namespace RICADO.Modbus.Channels
 
                             if (receivedBytes > 0)
                             {
+#if NETSTANDARD
+                                receivedData.AddRange(buffer.Take(receivedBytes));
+#else
                                 receivedData.AddRange(buffer.Slice(0, receivedBytes).ToArray());
+#endif
                             }
 
                             result.Bytes += receivedBytes;
@@ -371,7 +415,11 @@ namespace RICADO.Modbus.Channels
             return result;
         }
 
+#if NETSTANDARD
+        private byte[] buildMBAPMessage(byte unitId, byte[] message)
+#else
         private ReadOnlyMemory<byte> buildMBAPMessage(byte unitId, ReadOnlyMemory<byte> message)
+#endif
         {
             List<byte> modbusAPMessage = new List<byte>();
 

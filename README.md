@@ -1,5 +1,5 @@
 # RICADO.Modbus
-A Modbus Communication Library for .NET 6 Applications
+A Modbus Communication Library for .NET 6 and .NET Standard 2.0 Applications
 
 
 ## Sample usage

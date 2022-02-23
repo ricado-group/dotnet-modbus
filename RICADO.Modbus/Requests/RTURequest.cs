@@ -45,7 +45,11 @@ namespace RICADO.Modbus.Requests
 
         #region Internal Methods
 
+#if NETSTANDARD
+        internal byte[] BuildMessage()
+#else
         internal ReadOnlyMemory<byte> BuildMessage()
+#endif
         {
             List<byte> message = new List<byte>();
 
@@ -55,8 +59,11 @@ namespace RICADO.Modbus.Requests
             // Request Data
             message.AddRange(BuildRequestData());
 
-
+#if NETSTANDARD
+            return message.ToArray();
+#else
             return new ReadOnlyMemory<byte>(message.ToArray());
+#endif
         }
 
         #endregion
