@@ -114,19 +114,22 @@ namespace RICADO.Modbus.Channels
 
         public async Task InitializeAsync(int timeout, CancellationToken cancellationToken)
         {
-            lock(_isInitializedLock)
+            lock (_isInitializedLock)
             {
-                if(_isInitialized)
+                if (_isInitialized)
                 {
                     return;
                 }
             }
-            
-            try
+
+            if (!_initializeSemaphore.Wait(0))
             {
                 await _initializeSemaphore.WaitAsync(cancellationToken);
+            }
 
-                if(IsInitialized)
+            try
+            {
+                if (IsInitialized)
                 {
                     return;
                 }
@@ -136,7 +139,7 @@ namespace RICADO.Modbus.Channels
                 if (RegisteredDevices.Count == 1 || DateTime.UtcNow.Subtract(_lastInitializeAttempt).TotalSeconds >= retrySeconds)
                 {
                     _lastInitializeAttempt = DateTime.UtcNow;
-                    
+
                     cancellationToken.ThrowIfCancellationRequested();
 
                     destroyClient();
@@ -153,7 +156,7 @@ namespace RICADO.Modbus.Channels
                 _initializeSemaphore.Release();
             }
 
-            lock(_isInitializedLock)
+            lock (_isInitializedLock)
             {
                 _isInitialized = true;
             }
@@ -176,10 +179,13 @@ namespace RICADO.Modbus.Channels
 
             while (attempts <= retries)
             {
-                try
+                if (!_requestSemaphore.Wait(0))
                 {
                     await _requestSemaphore.WaitAsync(cancellationToken);
+                }
 
+                try
+                {
                     if (attempts > 0)
                     {
                         await destroyAndInitializeClient(request.UnitID, timeout, cancellationToken);

@@ -70,13 +70,13 @@ namespace RICADO.Modbus.Channels
 
             SerialOverLANChannel channel;
 
+            if (!_semaphore.Wait(0))
+            {
+                await _semaphore.WaitAsync(cancellationToken);
+            }
+
             try
             {
-                if (!_semaphore.Wait(0))
-                {
-                    await _semaphore.WaitAsync(cancellationToken);
-                }
-
                 channel = _channels.GetOrAdd(channelKey, (key) =>
                 {
                     return new SerialOverLANChannel(remoteHost, port);
@@ -118,13 +118,13 @@ namespace RICADO.Modbus.Channels
 
             string channelKey = getChannelKey(remoteHost, port);
 
+            if (!_semaphore.Wait(0))
+            {
+                await _semaphore.WaitAsync(cancellationToken);
+            }
+
             try
             {
-                if(!_semaphore.Wait(0))
-                {
-                    await _semaphore.WaitAsync(cancellationToken);
-                }
-
                 if(_channels.TryGetValue(channelKey, out SerialOverLANChannel existingChannel))
                 {
                     existingChannel.UnregisterDevice(uniqueId);
