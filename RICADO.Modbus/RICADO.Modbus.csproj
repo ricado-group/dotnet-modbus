@@ -5,7 +5,7 @@
     <Authors>RICADO Group</Authors>
     <Company>RICADO Group LP</Company>
     <Description>A Modbus Communication Library for .NET 6/7 and .NET Standard 2.0 Applications</Description>
-    <Copyright>Copyright © RICADO Group LP 2009 - 2022</Copyright>
+    <Copyright>Copyright © RICADO Group LP 2009 - 2023</Copyright>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <PackageIcon>packageIcon.png</PackageIcon>
     <RepositoryUrl>https://github.com/ricado-group/dotnet-modbus</RepositoryUrl>
